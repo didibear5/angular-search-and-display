@@ -1,5 +1,4 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,18 +6,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatListModule } from '@angular/material/list';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { BehaviorSubject, map, Observable } from 'rxjs';
-import { CurrentSearch } from './services/search.service';
-
-interface SearchResult {
-  num_found: number;
-  docs: {
-    title: string;
-    author_name: string[];
-    cover_edition_key: string;
-  }[];
-}
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { filter, Observable, switchMap, shareReplay } from 'rxjs';
+import { CurrentSearch, SearchResult, SearchService, SEARCH_CONFIG } from './services/search.service';
 
 @Component({
   selector: 'app-root',
@@ -34,56 +24,47 @@ interface SearchResult {
     MatListModule,
     MatPaginatorModule,
   ],
+  providers: [
+    SearchService,
+    {
+      provide: SEARCH_CONFIG,
+      useValue: {
+        defaultPageSize: 10,
+      },
+    },
+  ],
   // BONUS: Use DI to update the config of SearchService to update page size
 })
 export class AppComponent {
-  private $http = inject(HttpClient);
-
   // TODO: Create a SearchService and use DI to inject it
   // Check app/services/search.service.ts for the implementation
-  $search = {
-    searchText: 'lord of the rings',
-    pageSize: 10,
-    page: 1,
-    currentSearch$: new BehaviorSubject<CurrentSearch>({
-      searchText: '',
-      pageSize: 10,
-      page: 1,
-    }),
-    submit: () => {},
-  };
+  public $search = inject(SearchService);
 
   // TODO: Implement this observable to call the searchBooks() function
   // Hint: Use RxJS operators to solve these issues
-  searchResults$ = this.$search.currentSearch$.pipe(
-    map(() => ({
-      num_found: 2,
-      docs: [
-        {
-          title: 'The Lord of the Rings',
-          author_name: ['J.R.R. Tolkien'],
-          cover_edition_key: 'OL27702422M',
-        },
-        {
-          title: 'The Hobbit',
-          author_name: ['J.R.R. Tolkien'],
-          cover_edition_key: 'OL27702423M',
-        },
-      ],
-    }))
-  );
+  searchResults$: Observable<SearchResult> = this.$search.currentSearch$.pipe(
+    filter(
+      (search): search is CurrentSearch =>
+        !!search && search.searchText.trim() !== ''
+    ),
+    switchMap((currentSearch) => this.$search.searchBooks(currentSearch)),
+    shareReplay(1)
+  )
 
   onSearchInputChange(event: Event) {
     this.$search.searchText = (event.target as HTMLInputElement).value;
   }
 
-  searchBooks(currentSearch: CurrentSearch): Observable<SearchResult> {
-    const { searchText, pageSize, page } = currentSearch;
+  onSearchClick() {
+    this.$search.page = 1;
 
-    const searchQuery = searchText.split(' ').join('+').toLowerCase();
+    this.$search.submit();
+  }
 
-    return this.$http.get<SearchResult>(
-      `https://openlibrary.org/search.json?q=${searchQuery}&page=${page}&limit=${pageSize}`
-    );
+  onPageChange(event: PageEvent) {
+    this.$search.pageSize = event.pageSize;
+    this.$search.page = event.pageIndex + 1;
+
+    this.$search.submit();
   }
 }

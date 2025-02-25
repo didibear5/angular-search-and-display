@@ -7,11 +7,14 @@
         [value]="$search.searchText"
         (input)="onSearchInputChange($event)"
       />
-      <button mat-icon-button matSuffix (click)="$search.submit()">
+      <button mat-icon-button matSuffix (click)="onSearchClick()">
         <mat-icon>search</mat-icon>
       </button>
     </mat-form-field>
   </form>
+  @if ($search.isLoading) {
+    <div class="text-center">Loading</div>
+  }
   <mat-list role="list" class="flex-grow min-h-0 overflow-y-auto">
     @for (result of (searchResults$ | async)?.docs; track result.title) {
     <mat-list-item role="listitem">
@@ -24,7 +27,7 @@
         "
       />
       <div matListItemTitle>{{ result.title }}</div>
-      <div matListItemLine>{{ result.author_name.join(", ") }}</div>
+      <div matListItemLine>{{ result.author_name?.join(", ") }}</div>
     </mat-list-item>
     }
   </mat-list>
@@ -34,7 +37,8 @@
     [length]="(searchResults$ | async)?.num_found ?? 0"
     [pageIndex]="$search.page - 1"
     [pageSize]="$search.pageSize"
-    (page)="$search.page = $event.pageIndex + 1"
+    [pageSizeOptions]="[5, 10, 50]"
+    (page)="onPageChange($event)"
     aria-label="Select page"
   />
   }
